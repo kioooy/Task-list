@@ -37,6 +37,27 @@ describe('TodoApp Component', () => {
     expect(await screen.findByText('Test Task')).toBeInTheDocument();
   });
 
+  test('renders input field and buttons', () => {
+    render(<TodoApp />);
+
+    // Check for the presence of the input field
+    const inputElement = screen.getByPlaceholderText(/Enter new task.../i);
+    expect(inputElement).toBeInTheDocument();
+
+    // Check for the presence of the Add button
+    const addButton = screen.getByRole('button', { name: /Add/i });
+    expect(addButton).toBeInTheDocument();
+
+    // Check for the presence of the Edit and Delete buttons
+    const editButton = screen.getByLabelText(/Edit Task/i);
+    const deleteButton = screen.getByLabelText(/Delete Task/i);
+    expect(editButton).toBeInTheDocument();
+    expect(deleteButton).toBeInTheDocument();
+  });
+  
+
+  describe('User Interactions', () => {
+
   // User Interactions
   test('add new todos', async () => {
     global.fetch = jest.fn((url, options) => {
@@ -84,6 +105,58 @@ describe('TodoApp Component', () => {
     expect(await screen.findByText('Test Task')).toHaveClass('line-through');
   });
 
+  test('edits a todo item', async () => {
+    // Mock the API response for fetching todos
+    global.fetch = jest.fn((url, options) => {
+      if (!options || options.method === 'GET') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: '1', title: 'Test Task', completed: false }]),
+        });
+      }
+      if (options && options.method === 'PUT' && url.includes('/api/todo/1')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: '1', title: 'Updated Task', completed: false }),
+        });
+      }
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ error: "Unexpected request" }),
+      });
+    }) as jest.Mock;
+  
+    render(<TodoApp />);
+  
+    // Wait for the initial task to be displayed
+    const taskElement = await screen.findByText('Test Task');
+    expect(taskElement).toBeInTheDocument();
+  
+    // Click the edit button
+    const editButton = await screen.findByRole('button', { name: /edit task/i });
+    fireEvent.click(editButton);
+  
+    // Change the task title
+    const editInput = screen.getByDisplayValue('Test Task');
+    fireEvent.change(editInput, { target: { value: 'Updated Task' } });
+  
+    // Simulate saving the changes by blurring the input
+    fireEvent.blur(editInput);
+  
+    // Verify the updated task title is displayed
+    expect(await screen.findByText('Updated Task')).toBeInTheDocument();
+    expect(screen.queryByText('Test Task')).not.toBeInTheDocument();
+  
+    // Verify that the PUT request was made with the correct data
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/todo/1'),
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Updated Task' }),
+      })
+    );
+  });
   test('deletes todos', async () => {
     // Setup initial data with a todo item
     let mockTodos = [{ id: '1', title: 'Test Task', completed: false }];
@@ -150,6 +223,8 @@ describe('TodoApp Component', () => {
     expect(screen.queryByText('Task cannot be empty')).toBeInTheDocument();
   });
 
+  describe('State Management', () => {
+
   // State Management
   test('todo list updates', async () => {
     global.fetch = jest.fn(() =>
@@ -187,6 +262,8 @@ describe('TodoApp Component', () => {
     expect(screen.queryByText('Task cannot be empty')).toBeInTheDocument();
   });
 
+  describe('Edge Cases', () => {
+
   // Edge Cases
   test('empty input handling', () => {
     render(<TodoApp />);
@@ -199,31 +276,9 @@ describe('TodoApp Component', () => {
     expect(screen.queryByText('Task cannot be empty')).toBeInTheDocument();
   });
 
-  test('input validation', async () => {
-    render(<TodoApp />);
-    const input = screen.getByPlaceholderText('Enter new task...');
-    const addButton = screen.getByText('Add');
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: '' } });
-      fireEvent.click(addButton);
-    });
-
-    expect(screen.queryByText('Task cannot be empty')).toBeInTheDocument();
-  });
 
   // State Management
-  test('todo list updates', async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([{ id: '1', title: 'Test Task', completed: false }]),
-      })
-    ) as jest.Mock;
-    render(<TodoApp />);
-    expect(await screen.findByText('Test Task')).toBeInTheDocument();
-  });
-
+  
   test('multiple todos management', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({
@@ -239,14 +294,59 @@ describe('TodoApp Component', () => {
     expect(await screen.findByText('Task 2')).toBeInTheDocument();
   });
 
-  test('empty input handling', () => {
+  test('editing validation for empty input', async () => {
+    // Mock the API response for fetching todos
+    global.fetch = jest.fn((url, options) => {
+      if (!options || options.method === 'GET') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: '1', title: 'Test Task', completed: false }]),
+        });
+      }
+      if (options && options.method === 'PUT' && url.includes('/api/todo/1')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: '1', title: '', completed: false }),
+        });
+      }
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ error: "Unexpected request" }),
+      });
+    }) as jest.Mock;
+  
     render(<TodoApp />);
-    const input = screen.getByPlaceholderText('Enter new task...');
-    const addButton = screen.getByText('Add');
-
-    fireEvent.change(input, { target: { value: '' } });
-    fireEvent.click(addButton);
-
-    expect(screen.queryByText('Task cannot be empty')).toBeInTheDocument();
+  
+    // Wait for the initial task to be displayed
+    const taskElement = await screen.findByText('Test Task');
+    expect(taskElement).toBeInTheDocument();
+  
+    // Click the edit button
+    const editButton = await screen.findByRole('button', { name: /edit task/i });
+    fireEvent.click(editButton);
+  
+    // Change the task title to an empty string
+    const editInput = screen.getByDisplayValue('Test Task');
+    fireEvent.change(editInput, { target: { value: '' } });
+  
+    // Simulate saving the changes by blurring the input
+    fireEvent.blur(editInput);
+  
+    // Verify that the error message is displayed
+    expect(screen.queryByText('Task title cannot be empty')).toBeInTheDocument();
+  
+    // Verify that the PUT request was not made with an empty title
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/todo/1'),
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '' }),
+      })
+    );
   });
+  
+});
+});
+});
 });
