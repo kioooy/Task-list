@@ -4,6 +4,6 @@
 
 2.Open it in Visual Studio Code
 
-3.Open terminal and type npm run test:cov
+3.Open terminal and type: npm run test:cov
 
 4.Wait and see the result
